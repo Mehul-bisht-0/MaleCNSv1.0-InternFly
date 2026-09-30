@@ -1,0 +1,73 @@
+name: internfly
+services:
+  api:
+    build:
+      context: ../..
+    environment:
+      INTERNFLY_MODE: offline
+      INTERNFLY_DATABASE_PATH: /data/internfly.db
+      INTERNFLY_STEP_SECONDS: 1.0
+      INTERNFLY_AUTO_START: "true"
+      INTERNFLY_RUNNER_URL: http://runner:8001
+      INTERNFLY_CORS_ORIGINS: http://localhost:5173,http://localhost:8080
+    volumes:
+      - internfly-data:/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks: [app, runner-net]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  runner:
+    build:
+      context: ../..
+    command: ["uvicorn", "internfly.runner_service:app", "--host", "0.0.0.0", "--port", "8001"]
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    user: "10001:10001"
+    pids_limit: 32
+    mem_limit: 256m
+    cpus: 1.0
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks: [runner-net]
+
+  web:
+    build:
+      context: ../../apps/dashboard
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=16m
+      - /var/run:size=4m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks: [app]
+
+volumes:
+  internfly-data:
+
+networks:
+  app:
+  runner-net:
+    internal: true
+
