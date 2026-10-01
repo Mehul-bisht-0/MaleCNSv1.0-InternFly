@@ -9,6 +9,7 @@ __pycache__/
 node_modules/
 .npm-cache/
 dist/
+public/
 *.tsbuildinfo
 coverage/
 data/generated/
