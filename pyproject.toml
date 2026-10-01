@@ -33,6 +33,3 @@ addopts = "-q"
 
 [tool.vercel]
 entrypoint = "internfly.api:app"
-
-[tool.vercel.scripts]
-build = "cd apps/dashboard && npm ci && npm run build -- --outDir ../../public --emptyOutDir"
