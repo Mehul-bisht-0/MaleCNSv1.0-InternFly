@@ -122,7 +122,7 @@ export default function App() {
       const at = Date.now();
       setSamples(old => [...old, { at, clock: next.simulated_time, cycle: next.cycle, state: next.state,
         energy: next.energy, stress: next.stress, caffeine: next.caffeine_level,
-        mean: next.neural?.mean_activity || 0, peak: next.neural?.peak_activity || 0 }].slice(-180));
+        mean: next.neural?.mean_activity || 0, peak: next.neural?.peak_activity || 0 }].slice(-90));
       setMetrics(data.metrics);
       if (data.events?.length) setEvents((old: EventItem[]) => Array.from(new Map([...old, ...data.events].map(e => [e.sequence, e])).values()).sort((a, b) => a.sequence - b.sequence).slice(-80));
       if (at - lastSecondary > 5000) { lastSecondary = at; void refreshSecondary().catch(() => {}); }

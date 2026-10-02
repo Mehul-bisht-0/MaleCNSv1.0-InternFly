@@ -38,5 +38,5 @@ function Trace({ samples: incoming, series, max, title, subtitle }: { samples: T
 }
 
 export default function TelemetryCharts({ samples }: { samples: TelemetrySample[] }) {
-  return <div className="telemetry-charts"><Trace samples={samples} series={physiology} max={100} title="Energy, stress & caffeine" subtitle="Follow the coffee boost, accumulated stress, and recovery during sleep."/><Trace samples={samples} series={neural} max={1} title="Controller activity" subtitle="Latest controller readings; held between decision steps. No synthetic waveform."/><p className="session-caption">Current browser session · up to 180 readings · x-axis shows elapsed real seconds · disconnections leave gaps · refresh starts a new recording.</p></div>;
+  return <div className="telemetry-charts"><Trace samples={samples} series={physiology} max={100} title="Energy, stress & caffeine" subtitle="Follow the coffee boost, accumulated stress, and recovery during sleep."/><Trace samples={samples} series={neural} max={1} title="Controller activity" subtitle="Latest controller readings; held between decision steps. No synthetic waveform."/><p className="session-caption">Current browser session · up to 90 readings · x-axis shows elapsed real seconds · disconnections leave gaps · refresh starts a new recording.</p></div>;
 }

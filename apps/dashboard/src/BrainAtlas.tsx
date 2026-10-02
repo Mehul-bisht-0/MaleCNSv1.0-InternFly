@@ -91,16 +91,30 @@ export default function BrainAtlas({ map, activity }: { map: ConnectomeMap | nul
   const mean = activity.length ? activity.reduce((sum, n) => sum + Math.abs(n), 0) / activity.length : 0;
   const real = map?.source_kind === "male-cns-derived";
   const unitActivity = (unit: VisualUnit) => Math.min(1, Math.abs(activity[unit.parent] || 0) * (.5 + unit.phase * .65));
-  const firingUnits = visualField.units.filter(unit => unitActivity(unit) >= .2).length;
-  const distribution = Array.from({ length: 10 }, (_, bucket) => visualField.units.filter(unit => {
-    const value = unitActivity(unit); return value >= bucket / 10 && (bucket === 9 ? value <= 1 : value < (bucket + 1) / 10);
-  }).length);
+  const renderedUnits = useMemo(() => {
+    const stride = Math.max(1, Math.ceil(visualField.units.length / 320));
+    return visualField.units.filter((_, index) => index % stride === 0);
+  }, [visualField]);
+  const renderedLinks = useMemo(() => {
+    const stride = Math.max(1, Math.ceil(visualField.links.length / 420));
+    return visualField.links.filter((_, index) => index % stride === 0);
+  }, [visualField]);
+  const { firingUnits, distribution } = useMemo(() => {
+    const buckets = Array.from({ length: 10 }, () => 0);
+    let firing = 0;
+    visualField.units.forEach(unit => {
+      const value = Math.min(1, Math.abs(activity[unit.parent] || 0) * (.5 + unit.phase * .65));
+      if (value >= .2) firing += 1;
+      buckets[Math.min(9, Math.floor(value * 10))] += 1;
+    });
+    return { firingUnits: firing, distribution: buckets };
+  }, [activity, visualField]);
   const distributionPeak = Math.max(1, ...distribution);
   const rasterUnits = visualField.units.filter((_, index) => index % Math.max(1, Math.floor(visualField.units.length / 48)) === 0).slice(0, 48);
 
   return <aside className="brain-sidebar" aria-labelledby="brain-heading">
     <div className="brain-header"><div><div className="panel-kicker">02 / NEURAL OBSERVATORY</div><h2 id="brain-heading">Fly CNS signal map</h2></div><span className="live-pill"><i/> LIVE SIM</span></div>
-    <div className="brain-summary"><div><strong>{map?.neurons.length || 0}</strong><span>source nodes</span></div><div><strong>{visualField.units.length.toLocaleString()}</strong><span>simulated units</span></div><div><strong>{visualField.links.length.toLocaleString()}</strong><span>rendered paths</span></div><div><strong>{firingUnits.toLocaleString()}</strong><span>units firing</span></div></div>
+    <div className="brain-summary"><div><strong>{map?.neurons.length || 0}</strong><span>source nodes</span></div><div><strong>{visualField.units.length.toLocaleString()}</strong><span>simulated units</span></div><div><strong>{renderedLinks.length.toLocaleString()}</strong><span>rendered paths</span></div><div><strong>{firingUnits.toLocaleString()}</strong><span>units firing</span></div></div>
     <div className="brain-map-wrap">
       <div className="map-caption"><span>NUMERICAL POPULATION FIELD · {map?.neurons.length || 0} SOURCES / {map?.edges.length || 0} BIOLOGICAL EDGES</span><b>t+{String(activity.length).padStart(3, "0")}</b></div>
       <svg className={`brain-map ${showActivity ? "activity-on" : ""}`} viewBox="0 0 540 390" aria-label="Interactive fly CNS region projection. Select a neuron to inspect its identifier and simulated activity.">
@@ -122,14 +136,14 @@ export default function BrainAtlas({ map, activity }: { map: ConnectomeMap | nul
         </g>
         <g className="atlas-guides" clipPath={`url(#${prefix}-brain-clip)`}>{[0,1,2,3,4,5].map(i => <path key={i} d={`M${42 + i * 22},${87 + i * 23} C${170 + i * 14},${30 + i * 20} ${360 - i * 12},${320 - i * 17} ${501 - i * 16},${121 + i * 19}`} fill="none" stroke="#ffe0aa" strokeOpacity=".04" strokeWidth=".7"/>)}</g>
         {showPopulation && <g className="micro-connectome" clipPath={`url(#${prefix}-brain-clip)`}>
-          <g className="micro-links">{visualField.links.map((link, index) => {
+          <g className="micro-links">{renderedLinks.map((link, index) => {
             const from = visualField.units[link.source], to = visualField.units[link.target];
             const signal = from ? unitActivity(from) : 0;
             const region = map ? regionOf(map.neurons[link.parent]) : "unassigned";
             const visible = !selectedRegion || region === selectedRegion;
             return from && to ? <line key={index} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke={COLORS[region] || "#cbdde2"} strokeOpacity={visible ? .055 + signal * .18 : .008} strokeWidth={signal > .5 ? .48 : .3}/> : null;
           })}</g>
-          <g className="micro-units">{visualField.units.map(unit => {
+          <g className="micro-units">{renderedUnits.map(unit => {
             const signal = unitActivity(unit), region = map ? regionOf(map.neurons[unit.parent]) : "unassigned";
             const visible = !selectedRegion || region === selectedRegion;
             return <circle key={unit.id} className={`micro-unit ${signal >= .2 && showActivity ? "micro-active" : ""}`} cx={unit.x} cy={unit.y} r={signal > .65 ? 1.3 : .88} fill={COLORS[region] || "#d9e6e8"} opacity={visible ? .38 + signal * .6 : .025} style={{ animationDelay: `${-(unit.phase * 2.7).toFixed(2)}s` }}/>

@@ -171,10 +171,10 @@ export default function StoryWorld({ state }: { state: StoryState }) {
     const camera = new THREE.PerspectiveCamera(46, mount.clientWidth / mount.clientHeight, 0.1, 100);
     camera.position.set(12, 12, 20);
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
@@ -190,7 +190,7 @@ export default function StoryWorld({ state }: { state: StoryState }) {
     const keyLight = new THREE.DirectionalLight(0xffe1a6, 2.2);
     keyLight.position.set(2, 9, 5);
     keyLight.castShadow = true;
-    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.mapSize.set(1024, 1024);
     keyLight.shadow.camera.left = -14; keyLight.shadow.camera.right = 14;
     keyLight.shadow.camera.top = 14; keyLight.shadow.camera.bottom = -14;
     keyLight.shadow.normalBias = .035;
@@ -346,12 +346,21 @@ export default function StoryWorld({ state }: { state: StoryState }) {
 
     const clock = new THREE.Clock();
     let disposed = false;
+    let visible = true;
+    let frameId = 0;
+    let lastFrameAt = 0;
     let lastState = "";
     let lastView = "room";
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const animate = () => {
+    const wings = fly.children.filter(child => child.name === "wing");
+    const legs = fly.children.filter(child => child.name === "leg");
+    const cameraOffset = new THREE.Vector3(2.8, 2.1, 3.6);
+    const desiredCamera = new THREE.Vector3();
+    const animate = (frameAt = 0) => {
       if (disposed) return;
-      requestAnimationFrame(animate);
+      frameId = requestAnimationFrame(animate);
+      if (!visible || document.hidden || frameAt - lastFrameAt < 1000 / 30) return;
+      lastFrameAt = frameAt;
       const elapsed = clock.getElapsedTime();
       const current = stateRef.current;
       const sleeping = SLEEP_STATES.has(current.state);
@@ -368,15 +377,16 @@ export default function StoryWorld({ state }: { state: StoryState }) {
       fly.position.lerp(target, reducedMotion.matches ? 1 : 0.035);
       fly.rotation.z = THREE.MathUtils.lerp(fly.rotation.z, sleeping ? -.23 : COFFEE_STATES.has(current.state) ? -.3 : 0, .06);
       fly.rotation.y = THREE.MathUtils.lerp(fly.rotation.y, sleeping ? .2 : Math.PI / 2, .04);
-      fly.children.filter((child) => child.name === "wing").forEach((wing, index) => {
+      wings.forEach((wing, index) => {
         wing.rotation.x = sleeping || reducedMotion.matches ? .12 * wing.userData.side : Math.sin(elapsed * (moving ? 48 : 8) + index) * (moving ? .55 : .035);
       });
-      fly.children.filter(child => child.name === "leg").forEach(leg => {
+      legs.forEach(leg => {
         leg.rotation.z = sleeping || reducedMotion.matches ? 0 : Math.sin(elapsed * (moving ? 10 : 6) + leg.userData.ordinal * 2 + leg.userData.side) * (moving ? .15 : .04);
       });
       if (viewRef.current === "fly") {
         controls.enabled = false;
-        camera.position.lerp(fly.position.clone().add(new THREE.Vector3(2.8, 2.1, 3.6)), .065);
+        desiredCamera.copy(fly.position).add(cameraOffset);
+        camera.position.lerp(desiredCamera, .065);
         controls.target.lerp(fly.position, .1);
       } else if (lastView === "fly") {
         camera.position.set(12, 12, 20); controls.target.set(0, 1.5, 0); controls.enabled = true;
@@ -429,9 +439,15 @@ export default function StoryWorld({ state }: { state: StoryState }) {
     };
     const observer = new ResizeObserver(resize);
     observer.observe(mount);
+    const visibilityObserver = new IntersectionObserver(([entry]) => {
+      visible = entry?.isIntersecting ?? true;
+    }, { rootMargin: "160px" });
+    visibilityObserver.observe(mount);
     return () => {
       disposed = true;
+      cancelAnimationFrame(frameId);
       observer.disconnect();
+      visibilityObserver.disconnect();
       controls.dispose();
       dsaTexture.texture.dispose();
       jobsTexture.texture.dispose();
