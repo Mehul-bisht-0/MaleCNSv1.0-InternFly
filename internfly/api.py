@@ -59,6 +59,8 @@ def ready() -> dict[str, object]:
 
 @app.get("/api/state")
 def state() -> dict[str, object]:
+    if not settings.auto_start:
+        orchestrator.pulse()
     return orchestrator.public_state()
 
 
@@ -121,6 +123,8 @@ async def websocket_live(websocket: WebSocket) -> None:
     sequence = 0
     try:
         while True:
+            if not settings.auto_start:
+                orchestrator.pulse()
             batch = store.events(limit=50, after=sequence)
             if batch:
                 sequence = max(int(item["sequence"]) for item in batch)

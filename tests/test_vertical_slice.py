@@ -29,3 +29,14 @@ def test_one_cycle_always_reaches_sleep_checkpoint(tmp_path):
     assert store.query("SELECT COUNT(*) AS count FROM events WHERE event_type='agent.coffee_consumed'")[0]["count"] == 1
     assert store.counts()["cycles_completed"] == 1
     assert store.counts()["dsa_solved"] == 1
+
+
+def test_serverless_pulse_advances_once_per_interval(tmp_path):
+    store = EventStore(str(tmp_path / "pulse.db"))
+    settings = Settings(database_path=str(tmp_path / "pulse.db"), auto_start=False, step_seconds=60)
+    orchestrator = Orchestrator(store, settings)
+
+    assert orchestrator.pulse() is True
+    assert orchestrator.snapshot.state.value == "WAKE"
+    assert orchestrator.pulse() is False
+    assert orchestrator.snapshot.state.value == "WAKE"

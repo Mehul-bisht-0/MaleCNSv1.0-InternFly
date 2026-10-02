@@ -31,6 +31,7 @@ class Orchestrator:
         self._thread: threading.Thread | None = None
         self._shutdown = threading.Event()
         self._lock = threading.RLock()
+        self._last_pulse_at = 0.0
         self.latest_neural: dict[str, Any] = {}
 
     def start(self) -> None:
@@ -72,17 +73,35 @@ class Orchestrator:
 
     def _loop(self) -> None:
         while not self._shutdown.is_set():
-            try:
-                with self._lock:
-                    if not self.snapshot.paused and not self.snapshot.stopped:
-                        self.tick()
-            except Exception as exc:
-                with self._lock:
-                    self.store.append("system.step_failed", {"error": type(exc).__name__, "message": str(exc)[:300]},
-                                      Provenance.DETERMINISTIC_EXECUTION, actor="watchdog")
-                    if self.snapshot.state != State.RECOVER_FROM_FAILURE:
-                        self._transition(State.RECOVER_FROM_FAILURE, "recovering from bounded failure")
+            self.pulse()
             self._shutdown.wait(self.settings.step_seconds)
+
+    def pulse(self) -> bool:
+        """Advance at most once per configured interval.
+
+        Persistent deployments call this from the background loop. Serverless
+        deployments call it from active API/WebSocket traffic, where a daemon
+        thread cannot be relied upon to keep running between invocations.
+        """
+        with self._lock:
+            now = time.monotonic()
+            if now - self._last_pulse_at < self.settings.step_seconds:
+                return False
+            self._last_pulse_at = now
+            if self.snapshot.paused or self.snapshot.stopped:
+                return False
+            try:
+                self.tick()
+            except Exception as exc:
+                self.store.append(
+                    "system.step_failed",
+                    {"error": type(exc).__name__, "message": str(exc)[:300]},
+                    Provenance.DETERMINISTIC_EXECUTION,
+                    actor="watchdog",
+                )
+                if self.snapshot.state != State.RECOVER_FROM_FAILURE:
+                    self._transition(State.RECOVER_FROM_FAILURE, "recovering from bounded failure")
+            return True
 
     def _transition(self, target: State, description: str) -> None:
         source = self.snapshot.state
