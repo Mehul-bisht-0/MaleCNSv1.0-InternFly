@@ -4,6 +4,7 @@
 __pycache__/
 *.py[cod]
 *.db
+*.db-*
 .pytest_cache/
 .mypy_cache/
 node_modules/
@@ -13,3 +14,4 @@ public/
 *.tsbuildinfo
 coverage/
 data/generated/
+.dashboard-git-backup/

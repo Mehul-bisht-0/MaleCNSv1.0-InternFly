@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import settings
@@ -131,3 +133,10 @@ async def websocket_live(websocket: WebSocket) -> None:
             await asyncio.sleep(1)
     except WebSocketDisconnect:
         return
+
+
+# Vercel's FastAPI builder runs the dashboard build before packaging this app.
+# Mount it last so API, health, docs, and WebSocket routes retain precedence.
+dashboard_directory = Path(__file__).resolve().parents[1] / "public"
+if dashboard_directory.is_dir():
+    app.mount("/", StaticFiles(directory=dashboard_directory, html=True), name="dashboard")
